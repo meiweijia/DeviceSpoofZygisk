@@ -15,35 +15,37 @@ public:
     void onLoad(zygisk::Api *api, JNIEnv *env) override {
         this->api = api;
         this->env = env;
-        try {
-            std::ifstream configFile("/data/adb/modules/my_module/config.yaml");
-            if (!configFile.is_open()) {
-                __android_log_print(ANDROID_LOG_ERROR, "DeviceSpoofZygisk", "Failed to open config.yaml");
-                return;
-            }
-            YAML::Node yaml = YAML::Load(configFile);
-            for (const auto& pkg : yaml["packages"]) {
-                std::string packageName = pkg["package_name"].as<std::string>();
-                auto& fields = config[packageName];
-                for (const auto& field : pkg["fields"]) {
-                    std::string fieldName = field.first.as<std::string>();
-                    std::string value = field.second.as<std::string>();
-                    fields[fieldName] = value;
-                }
-            }
-        } catch (const YAML::Exception& e) {
-            __android_log_print(ANDROID_LOG_ERROR, "DeviceSpoofZygisk", "YAML parsing error: %s", e.what());
+        
+        std::ifstream configFile("/data/adb/modules/my_module/config.yaml");
+        if (!configFile.is_open()) {
+            __android_log_print(ANDROID_LOG_ERROR, "DeviceSpoofZygisk", "Failed to open config.yaml");
+            return;
         }
+        YAML::Node yaml = YAML::Load(configFile);
+        for (const auto& pkg : yaml["packages"]) {
+            std::string packageName = pkg["package_name"].as<std::string>();
+            auto& fields = config[packageName];
+            for (const auto& field : pkg["fields"]) {
+                std::string fieldName = field.first.as<std::string>();
+                std::string value = field.second.as<std::string>();
+                fields[fieldName] = value;
+            }
+        }
+
     }
 
     void preAppSpecialize(zygisk::AppSpecializeArgs *args) override {
-        const char* packageName = args->nice_name;
-        auto it = config.find(packageName);
-        if (it != config.end()) {
-            shouldSpoof = true;
-            currentFields = it->second;
-        } else {
-            shouldSpoof = false;
+        jstring jPackageName = args->nice_name;
+        const char* packageName = env->GetStringUTFChars(jPackageName, nullptr);
+        if (packageName) {
+            auto it = config.find(packageName);
+            if (it != config.end()) {
+                shouldSpoof = true;
+                currentFields = it->second;
+            } else {
+                shouldSpoof = false;
+            }
+            env->ReleaseStringUTFChars(jPackageName, packageName);
         }
     }
 
