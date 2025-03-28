@@ -1,0 +1,7 @@
+id=device_spoof
+name=Device Spoof Zygisk
+version=v1.0
+versionCode=1.0
+author=Meiwj
+description=A Zygisk module to spoof device properties
+updateJson=https://raw.githubusercontent.com/meiweijia/DeviceSpoofZygisk/master/update.json
