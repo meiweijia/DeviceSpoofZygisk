@@ -16,7 +16,7 @@ public:
         this->api = api;
         this->env = env;
         
-        std::ifstream configFile("/data/adb/modules/my_module/config.yaml");
+        std::ifstream configFile("/data/adb/modules/device_spoof/config.yaml");
         if (!configFile.is_open()) {
             __android_log_print(ANDROID_LOG_ERROR, "DeviceSpoofZygisk", "Failed to open config.yaml");
             return;
