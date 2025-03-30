@@ -1,83 +1,105 @@
-#include <jni.h>
-#include <string>
-#include <map>
-#include <yaml-cpp/yaml.h>
-#include <fstream>
-#include <android/log.h>
 #include <cstdlib>
 #include <unistd.h>
 #include <fcntl.h>
+#include <android/log.h>
+#include <string>
 
 #include "zygisk.hpp"
 
-class DeviceSpoofZygisk : public zygisk::ModuleBase {
+using zygisk::Api;
+using zygisk::AppSpecializeArgs;
+using zygisk::ServerSpecializeArgs;
+
+#define LOGD(...) __android_log_print(ANDROID_LOG_DEBUG, "DeviceSpoofZygisk", __VA_ARGS__)
+
+class DeviceSpoofZygisk : public zygisk::ModuleBase
+{
 public:
-    void onLoad(zygisk::Api *api, JNIEnv *env) override {
+    void onLoad(Api *api, JNIEnv *env) override
+    {
         this->api = api;
         this->env = env;
-        
-        std::ifstream configFile("/data/adb/modules/device_spoof/config.yaml");
-        if (!configFile.is_open()) {
-            __android_log_print(ANDROID_LOG_ERROR, "DeviceSpoofZygisk", "Failed to open config.yaml");
-            return;
-        }
-        YAML::Node yaml = YAML::Load(configFile);
-        for (const auto& pkg : yaml["packages"]) {
-            std::string packageName = pkg["package_name"].as<std::string>();
-            auto& fields = config[packageName];
-            for (const auto& field : pkg["fields"]) {
-                std::string fieldName = field.first.as<std::string>();
-                std::string value = field.second.as<std::string>();
-                fields[fieldName] = value;
-            }
-        }
-
+        LOGD("DeviceSpoof loading success...");
     }
 
-    void preAppSpecialize(zygisk::AppSpecializeArgs *args) override {
-        jstring jPackageName = args->nice_name;
-        const char* packageName = env->GetStringUTFChars(jPackageName, nullptr);
-        if (packageName) {
-            auto it = config.find(packageName);
-            if (it != config.end()) {
-                shouldSpoof = true;
-                currentFields = it->second;
-            } else {
-                shouldSpoof = false;
-            }
-            env->ReleaseStringUTFChars(jPackageName, packageName);
-        }
+    void preAppSpecialize(AppSpecializeArgs *args) override
+    {
+        // Use JNI to fetch our process name
+        const char *process = env->GetStringUTFChars(args->nice_name, nullptr);
+        preSpecialize(process);
+        env->ReleaseStringUTFChars(args->nice_name, process);
     }
 
-    void postAppSpecialize(const zygisk::AppSpecializeArgs *args) override {
-        if (!shouldSpoof) return;
-        jclass buildClass = env->FindClass("android/os/Build");
-        if (!buildClass) {
-            __android_log_print(ANDROID_LOG_ERROR, "DeviceSpoofZygisk", "Failed to find Build class");
-            return;
+    void preServerSpecialize(ServerSpecializeArgs *args) override
+    {
+        preSpecialize("system_server");
+    }
+
+    void postAppSpecialize(const zygisk::AppSpecializeArgs *args) override
+    {
+        if (shouldSpoof)
+        {
+            jclass buildClass = env->FindClass("android/os/Build");
+
+            auto setField = [&](const char *fieldName, const std::string &value)
+            {
+                jfieldID fieldId = env->GetStaticFieldID(buildClass, fieldName, "Ljava/lang/String;");
+                if (fieldId)
+                {
+                    jstring jValue = env->NewStringUTF(value.c_str());
+                    env->SetStaticObjectField(buildClass, fieldId, jValue);
+                    env->DeleteLocalRef(jValue);
+                }
+            };
+
+            setField("MODEL", "Pixel 9 Pro");
+            setField("MANUFACTURER", "Google");
+            setField("BRAND", "google");
+            setField("DEVICE", "caiman");
+            setField("TAGS", "release-keys");
+            setField("TYPE", "user");
+            setField("PRODUCT", "caiman");
+            setField("BOARD", "caiman");
+            setField("ID", "AD1A.240530.047.U1");
+            setField("FINGERPRINT", "google/caiman/caiman:14/AD1A.240530.047.U1/12150698:user/release-keys");
+
+            env->DeleteLocalRef(buildClass);
         }
-        for (const auto& pair : currentFields) {
-            const std::string& fieldName = pair.first;
-            const std::string& value = pair.second;
-            jfieldID fieldId = env->GetStaticFieldID(buildClass, fieldName.c_str(), "Ljava/lang/String;");
-            if (fieldId) {
-                jstring jValue = env->NewStringUTF(value.c_str());
-                env->SetStaticObjectField(buildClass, fieldId, jValue);
-                env->DeleteLocalRef(jValue);
-                __android_log_print(ANDROID_LOG_INFO, "DeviceSpoofZygisk", "Set Build.%s to %s", fieldName.c_str(), value.c_str());
-            } else {
-                __android_log_print(ANDROID_LOG_WARN, "DeviceSpoofZygisk", "Field %s not found in Build class", fieldName.c_str());
-            }
-        }
-        env->DeleteLocalRef(buildClass);
     }
 
 private:
-    zygisk::Api *api;
+    Api *api;
     JNIEnv *env;
-    std::map<std::string, std::map<std::string, std::string>> config;
     bool shouldSpoof = false;
-    std::map<std::string, std::string> currentFields;
+
+    int str_in_array(const char *str, const char **arr, int size)
+    {
+        for (int i = 0; i < size; i++)
+        {
+            if (strcmp(str, arr[i]) == 0)
+            {
+                return 1;
+            }
+        }
+        return 0;
+    }
+
+    void preSpecialize(const char *process)
+    {
+        const char *should_spoof_process[] = {"flar2.devcheck", "com.zhenxi.hunter", "me.garfieldhan.holmes"};
+        int arr_size = sizeof(should_spoof_process) / sizeof(should_spoof_process[0]);
+
+        if (str_in_array(process, should_spoof_process, arr_size))
+        {
+            shouldSpoof = true;
+        }
+        else
+        {
+            shouldSpoof = false;
+        }
+        LOGD("process=[%s], shouldSpoof=%d", process, shouldSpoof);
+    }
 };
 
+// Register our module class and the companion handler function
 REGISTER_ZYGISK_MODULE(DeviceSpoofZygisk)
