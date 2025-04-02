@@ -1,0 +1,18 @@
+- template: galaxy_s23
+  fields:
+    MODEL: Galaxy S23
+    DEVICE: exynos
+    MANUFACTURER: Samsung
+- template: pixel_9_pro
+  fields:
+    BOARD: caiman
+    BRAND: Google
+    DEVICE: caiman
+    DISPLAY: AD1A.240530.047.U1 release-keys
+    FINGERPRINT: google/caiman/caiman:14/AD1A.240530.047.U1/12150698:user/release-keys
+    ID: AD1A.240530.047.U1
+    MANUFACTURER: Google
+    MODEL: Pixel 9 Pro
+    PRODUCT: caiman
+    SOC_MANUFACTURER: Google
+    SOC_MODEL: Tensor G4

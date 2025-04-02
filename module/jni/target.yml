@@ -1,0 +1,7 @@
+- package_name: com.zhenxi.hunter
+  template: pixel_9_pro
+- package_name: com.example.app1
+  fields:
+    MODEL: Pixel 9 Pro
+    DEVICE: caiman
+    MANUFACTURER: Google

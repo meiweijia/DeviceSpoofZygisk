@@ -8,5 +8,6 @@
 .externalNativeBuild
 .cxx
 local.properties
+magisk/*.yml
 magisk/zygisk/**
 .vscode

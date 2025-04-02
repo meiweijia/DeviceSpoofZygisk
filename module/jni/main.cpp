@@ -3,6 +3,7 @@
 #include <fcntl.h>
 #include <android/log.h>
 #include <string>
+#include "yaml_parser.h"
 
 #include "zygisk.hpp"
 
@@ -19,7 +20,20 @@ public:
     {
         this->api = api;
         this->env = env;
-        LOGD("DeviceSpoof loading success...");
+        // 加载模板文件
+        if (!yaml.load_templates(module_path + std::string("template.yml")))
+        {
+            LOGD("Failed to load template.yml");
+            return;
+        }
+
+        // 加载目标文件
+        if (!yaml.load_targets(module_path + std::string("target.yml")))
+        {
+            LOGD("Failed to load target.yml");
+            return;
+        }
+        LOGD("DeviceSpoof loading successsful...");
     }
 
     void preAppSpecialize(AppSpecializeArgs *args) override
@@ -51,17 +65,10 @@ public:
                     env->DeleteLocalRef(jValue);
                 }
             };
-
-            setField("MODEL", "Pixel 9 Pro");
-            setField("MANUFACTURER", "Google");
-            setField("BRAND", "google");
-            setField("DEVICE", "caiman");
-            setField("TAGS", "release-keys");
-            setField("TYPE", "user");
-            setField("PRODUCT", "caiman");
-            setField("BOARD", "caiman");
-            setField("ID", "AD1A.240530.047.U1");
-            setField("FINGERPRINT", "google/caiman/caiman:14/AD1A.240530.047.U1/12150698:user/release-keys");
+            for (const auto &[key, val] : entry.fields)
+            {
+                setField(key.data(), val);
+            }
 
             env->DeleteLocalRef(buildClass);
         }
@@ -71,35 +78,19 @@ private:
     Api *api;
     JNIEnv *env;
     bool shouldSpoof = false;
-
-    int str_in_array(const char *str, const char **arr, int size)
-    {
-        for (int i = 0; i < size; i++)
-        {
-            if (strcmp(str, arr[i]) == 0)
-            {
-                return 1;
-            }
-        }
-        return 0;
-    }
+    YamlParser yaml;
+    Entry entry;
+    std::string module_path = "/data/adb/modules/device_spoof/";
 
     void preSpecialize(const char *process)
     {
-        const char *should_spoof_process[] = {"flar2.devcheck", "com.zhenxi.hunter", "me.garfieldhan.holmes"};
-        int arr_size = sizeof(should_spoof_process) / sizeof(should_spoof_process[0]);
-
-        if (str_in_array(process, should_spoof_process, arr_size))
+        if (yaml.contains_package(process))
         {
             shouldSpoof = true;
-        }
-        else
-        {
-            shouldSpoof = false;
+            entry = yaml.find_by_package(process);
         }
         LOGD("process=[%s], shouldSpoof=%d", process, shouldSpoof);
     }
 };
 
-// Register our module class and the companion handler function
 REGISTER_ZYGISK_MODULE(DeviceSpoofZygisk)
