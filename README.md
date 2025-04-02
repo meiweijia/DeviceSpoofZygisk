@@ -1,52 +1,86 @@
-# Developing Zygisk Modules
+# Device Spoof Zygisk Module
 
-This repository hosts a template zygisk module for developers to start developing Zygisk modules. Before developing Zygisk modules, you should first check out the official documentation for [Magisk Modules](https://topjohnwu.github.io/Magisk/guides.html). Do not fork this repository for your new module; either manually clone this repository, or press the "Use this template" button in the GitHub UI.
+基于 Zygisk 的 Android 设备信息伪装模块，通过 YAML 配置文件实现动态设备信息伪装。修改配置文件后，强行停止目标应用，重新打开即可生效。
 
-This repository is archived because it is meant to be read-only; the project is not abandoned. For any issues, please report them to the main Magisk repository.
+## 📁 配置文件说明
 
-## API
+### 1. 模板配置文件 `template.yml`
+- **路径**: `/data/adb/modules/device_spoof/template.yml`
+- **格式说明**:
 
-- The canonical URL of the latest public Zygisk API is [module/jni/zygisk.hpp](https://github.com/topjohnwu/zygisk-module-sample/blob/master/module/jni/zygisk.hpp).
-- The header file is self documented; directly refer to the header source code for all Zygisk API details.
-- Magisk is committed to maintain backwards compatibility forever. That is, whenever there is an API update for Zygisk in a newer Magisk version, Magisk can always load Zygisk modules built for an older Zygisk API.
-- If you do not need the new features introduced in newer API versions, it's perfectly fine to stay on the older API version to maintain maximum compatibility.
-
-|                                        Zygisk API                                         | Minimal Magisk |                                      Diff                                      |
-| :---------------------------------------------------------------------------------------: | :------------: | :----------------------------------------------------------------------------: |
-| [v4](https://github.com/topjohnwu/zygisk-module-sample/blob/master/module/jni/zygisk.hpp) |     26000      | [v3..v4](https://github.com/topjohnwu/zygisk-module-sample/compare/v3..master) |
-|   [v3](https://github.com/topjohnwu/zygisk-module-sample/blob/v3/module/jni/zygisk.hpp)   |     24300      |   [v2..v3](https://github.com/topjohnwu/zygisk-module-sample/compare/v2..v3)   |
-|   [v2](https://github.com/topjohnwu/zygisk-module-sample/blob/v2/module/jni/zygisk.hpp)   |     24000      |                                      N/A                                       |
-
-## Notes
-
-- This repository can be opened with Android Studio.
-- Developing Zygisk modules requires a modern C++ compiler. Please use NDK r21 or higher.
-- All the C++ code is in the [module/jni](https://github.com/topjohnwu/zygisk-module-sample/tree/master/module/jni) folder.
-- DO NOT modify the default configurations in `Application.mk` unless you know what you are doing.
-
-## C++ STL
-
-- The `APP_STL` variable in `Application.mk` is set to `none`. **DO NOT** use any C++ STL included in NDK.
-- If you'd like to use C++ STL, you **have to** use the `libcxx` included as a git submodule in this repository. Zygisk modules' code are injected into Zygote, and the included `libc++` is setup to be lightweight and fully self contained that prevents conflicts with the hosting program.
-- If you do not need STL, link to the system `libstdc++` so that you can at least call the `new` operator.
-- Both configurations are demonstrated in the example `Android.mk`.
-
-## Building
-
-- In the `module` folder, call [`ndk-build`](https://developer.android.com/ndk/guides/ndk-build) to compile your modules.
-- Your module libraries will be in `libs/<abi>/lib<module_name>.so`.
-- Copy the libraries into your module's `zygisk` folder, with the ABI as it's file name:
-
+```yaml
+- template: 模板名称
+  fields:
+    字段名: 值
+    字段名: 值
 ```
-module_id
-├── module.prop
-└── zygisk
-    ├── arm64-v8a.so
-    ├── armeabi-v7a.so
-    ├── x86.so
-    └── x86_64.so
+示例：
+```yaml
+- template: galaxy_s23
+  fields:
+    MODEL: Galaxy S23
+    DEVICE: exynos
+    MANUFACTURER: Samsung
+- template: pixel_9_pro
+  fields:
+    BOARD: caiman
+    BRAND: Google
+    DEVICE: caiman
+    DISPLAY: AD1A.240530.047.U1 release-keys
+    FINGERPRINT: google/caiman/caiman:14/AD1A.240530.047.U1/12150698:user/release-keys
+    ID: AD1A.240530.047.U1
+    MANUFACTURER: Google
+    MODEL: Pixel 9 Pro
+    PRODUCT: caiman
+    SOC_MANUFACTURER: Google
+    SOC_MODEL: Tensor G4
 ```
 
-## License
+### 2. 目标应用配置文件 `target.yml`
+- **目标应用配置区路径**: `/data/adb/modules/device_spoof/target.yml`
+- **格式说明**:
+```yaml
+- package: 应用包名
+  template: 要使用的模板名称  # 可选
+  fields:                  # 可选（直接指定字段）
+    字段名: 值
+```
+示例：
+```yaml
+# app1 - 使用完整Pixel模板
+- package: "com.example.app1"
+  template: "pixel_9_pro"
 
-Although the main Magisk project is licensed under GPLv3, the Zygisk API and its headers are not. Every source code in this repository is released under 0BSD (a public domain equivalent license), so you don't have to worry about any licensing issues while developing Zygisk modules.
+# app2 - 使用三星模板但修改型号
+- package: "ccom.example.app2"
+  template: "galaxy_s23"
+  fields:
+    MODEL: "Galaxy S23 Ultra"
+    DISPLAY: "TP1A.220624.014.G986USQU4EWE2"
+
+# app3 - 完全自定义配置
+- package: "com.example.app3"
+  fields:
+    MODEL: "Redmi Note 13 Pro"
+    MANUFACTURER: "Xiaomi"
+    BRAND: "Redmi"
+    PRODUCT: "nuwa"
+    DEVICE: "nuwa"
+    FINGERPRINT: "Redmi/nuwa_global/nuwa:13/TKQ1.221114.001/V14.0.6.0.TMBMIXM:user/release-keys"
+```
+
+- fields 支持字段
+- [参考 https://developer.android.com/reference/android/os/Build#fields_1](https://developer.android.com/reference/android/os/Build#fields_1 "参考 https://developer.android.com/reference/android/os/Build#fields_1")
+
+```
+MODEL
+DEVICE
+MANUFACTURER
+BRAND
+PRODUCT
+FINGERPRINT
+ID
+DISPLAY
+HARDWARE
+SERIAL
+```
