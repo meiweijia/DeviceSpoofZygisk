@@ -154,7 +154,7 @@ void YamlParser::parse_yaml(vector<Entry> &output)
 
             if (key == "template")
                 entry.template_name = value;
-            else if (key == "package_name")
+            else if (key == "package")
                 entry.package_name = value;
 
             i++;
@@ -180,7 +180,7 @@ void YamlParser::parse_yaml(vector<Entry> &output)
                     {
                         entry.template_name = v;
                     }
-                    else if (k == "package_name")
+                    else if (k == "package")
                     {
                         entry.package_name = v;
                     }

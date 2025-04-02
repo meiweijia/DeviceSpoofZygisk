@@ -1,6 +1,6 @@
-- package_name: com.zhenxi.hunter
+- package: com.zhenxi.hunter
   template: pixel_9_pro
-- package_name: com.example.app1
+- package: com.example.app1
   fields:
     MODEL: Pixel 9 Pro
     DEVICE: caiman
